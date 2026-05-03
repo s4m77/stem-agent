@@ -218,5 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# StemDS generated outputs
+runs/
 task.md
 .DS_Store
