@@ -1,0 +1,6 @@
+{"task_id":"sales_004","domain":"data_analysis","dataset_path":"data/toy_csvs/sales.csv","question":"Which region has the lowest total revenue?","answer":"South","answer_type":"string","tolerance":null,"tags":["groupby","aggregation","sales"]}
+{"task_id":"employees_004","domain":"data_analysis","dataset_path":"data/toy_csvs/employees.csv","question":"What is the average salary across all employees?","answer":106666.66666666667,"answer_type":"number","tolerance":0.01,"tags":["mean","employees"]}
+{"task_id":"orders_005","domain":"data_analysis","dataset_path":"data/toy_csvs/orders.csv","question":"Which customer_id placed the most orders?","answer":"C001","answer_type":"string","tolerance":null,"tags":["count","ranking","orders"]}
+{"task_id":"products_003","domain":"data_analysis","dataset_path":"data/toy_csvs/products.csv","question":"How many products are in the Software category?","answer":2,"answer_type":"number","tolerance":0.0,"tags":["filtering","count","products"]}
+{"task_id":"orders_006","domain":"data_analysis","dataset_path":"data/toy_csvs/orders.csv","question":"What is the total value of cancelled orders?","answer":800,"answer_type":"number","tolerance":0.01,"tags":["filtering","sum","orders"]}
+

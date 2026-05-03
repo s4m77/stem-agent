@@ -1,0 +1,9 @@
+customer_id,name,country,signup_date,segment
+C001,Acme GmbH,Germany,2025-01-10,Enterprise
+C002,Nova BV,Netherlands,2025-02-02,SMB
+C003,Orion LLC,United States,2025-02-20,Enterprise
+C004,Helios SARL,France,2025-03-04,SMB
+C005,Rhein AG,Germany,2025-03-18,Enterprise
+C006,Maple Inc,Canada,2025-04-22,SMB
+C007,Bavaria Labs,Germany,2025-05-05,SMB
+

@@ -1,0 +1,6 @@
+{"task_id":"sales_003","domain":"data_analysis","dataset_path":"data/toy_csvs/sales.csv","question":"Which employee_id has the highest total revenue?","answer":"E002","answer_type":"string","tolerance":null,"tags":["groupby","aggregation","sales"]}
+{"task_id":"employees_003","domain":"data_analysis","dataset_path":"data/toy_csvs/employees.csv","question":"What is the median employee age?","answer":39.5,"answer_type":"number","tolerance":0.01,"tags":["median","employees"]}
+{"task_id":"orders_004","domain":"data_analysis","dataset_path":"data/toy_csvs/orders.csv","question":"How many orders are pending?","answer":1,"answer_type":"number","tolerance":0.0,"tags":["filtering","count","orders"]}
+{"task_id":"products_002","domain":"data_analysis","dataset_path":"data/toy_csvs/products.csv","question":"What is the average price for Hardware products?","answer":200.0,"answer_type":"number","tolerance":0.01,"tags":["filtering","mean","products"]}
+{"task_id":"customers_003","domain":"data_analysis","dataset_path":"data/toy_csvs/customers.csv","question":"Which country has the most customers?","answer":"Germany","answer_type":"string","tolerance":null,"tags":["count","ranking","customers"]}
+

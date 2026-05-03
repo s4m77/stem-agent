@@ -1,0 +1,14 @@
+order_id,customer_id,order_date,status,total
+O001,C001,2026-01-05,completed,1200
+O002,C002,2026-01-08,cancelled,300
+O003,C003,2026-02-11,completed,850
+O004,C001,2026-02-20,completed,700
+O005,C004,2026-03-01,cancelled,400
+O006,C005,2026-03-13,completed,1600
+O007,C001,2026-03-21,completed,500
+O008,C006,2026-03-27,completed,900
+O009,C007,2026-05-03,pending,200
+O010,C003,2026-04-18,completed,1250
+O011,C001,2026-04-20,cancelled,100
+O012,C005,2026-04-25,completed,950
+
