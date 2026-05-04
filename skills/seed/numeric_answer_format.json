@@ -1,0 +1,13 @@
+{
+  "applies_to_failure_categories": [
+    "numeric_tolerance_issue",
+    "answer_format_mismatch"
+  ],
+  "applies_to_tags": [],
+  "description": "Return plain numeric values without units or formatted strings.",
+  "metadata": {},
+  "name": "Numeric Answer Format",
+  "priority": 80,
+  "prompt_instructions": "For numeric answers, assign a plain int or float to ANSWER. Do not include units, labels, commas, or explanatory text.",
+  "skill_id": "numeric_answer_format"
+}

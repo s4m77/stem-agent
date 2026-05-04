@@ -1,0 +1,12 @@
+{
+  "applies_to_failure_categories": [],
+  "applies_to_tags": [
+    "machine_learning"
+  ],
+  "description": "Use sklearn only when needed and make simple ML calculations deterministic.",
+  "metadata": {},
+  "name": "Machine Learning",
+  "priority": 50,
+  "prompt_instructions": "For simple ML tasks, use sklearn only when needed, set random_state for deterministic behavior, and assign the requested metric or value to ANSWER.",
+  "skill_id": "machine_learning_skill"
+}

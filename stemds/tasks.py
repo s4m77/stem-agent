@@ -21,6 +21,7 @@ class DataAnalysisTask:
     domain: str = "data_analysis"
     tolerance: float | None = None
     notes: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.domain != "data_analysis":
@@ -45,6 +46,7 @@ class DataAnalysisTask:
             tolerance=payload.get("tolerance"),
             tags=list(payload.get("tags", [])),
             notes=payload.get("notes"),
+            metadata=dict(payload.get("metadata", {})),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -72,4 +74,3 @@ def save_tasks_jsonl(tasks: list[DataAnalysisTask], path: str | Path) -> None:
     with output_path.open("w", encoding="utf-8") as handle:
         for task in tasks:
             handle.write(json.dumps(task.to_dict(), sort_keys=True) + "\n")
-

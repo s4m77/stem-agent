@@ -1,0 +1,13 @@
+{
+  "applies_to_failure_categories": [
+    "unsupported_multi_answer",
+    "answer_format_mismatch"
+  ],
+  "applies_to_tags": [],
+  "description": "Use deterministic structured outputs for multi-value questions.",
+  "metadata": {},
+  "name": "Multi Answer Format",
+  "priority": 70,
+  "prompt_instructions": "If multiple values are requested, return a deterministic dict or list in the requested order, with concise scalar values.",
+  "skill_id": "multi_answer_format"
+}

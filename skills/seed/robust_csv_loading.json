@@ -1,0 +1,12 @@
+{
+  "applies_to_failure_categories": [
+    "execution_error"
+  ],
+  "applies_to_tags": [],
+  "description": "Use the provided CSV_PATH variable exactly and avoid hard-coded paths.",
+  "metadata": {},
+  "name": "Robust CSV Loading",
+  "priority": 90,
+  "prompt_instructions": "Use CSV_PATH exactly with pandas, usually pd.read_csv(CSV_PATH). Do not hard-code paths or read external files.",
+  "skill_id": "robust_csv_loading"
+}

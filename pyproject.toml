@@ -13,6 +13,9 @@ dependencies = [
   "openai",
   "pandas",
   "python-dotenv",
+  "scikit-learn",
+  "scipy",
+  "tqdm",
 ]
 
 [project.optional-dependencies]
@@ -23,3 +26,5 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["stemds*"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]

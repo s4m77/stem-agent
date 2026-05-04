@@ -5,8 +5,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pandas as pd
+
 from stemds.agents.base import AgentOutput
-from stemds.llm import LLMClient
+from stemds.llm import BaseLLMClient
+from stemds.skills.base import PromptSkill
+from stemds.skills.library import SkillLibrary
 from stemds.tasks import DataAnalysisTask
 
 
@@ -161,36 +165,134 @@ print(f"FINAL_ANSWER: {{answer}}")
 """.strip() + "\n"
 
 
-class OpenAIBaselineAgent:
-    def __init__(self, model: str, llm_client: LLMClient) -> None:
+class OpenAIGenericAnalysisAgent:
+    def __init__(self, model: str, llm_client: BaseLLMClient, seed: int | None = 42) -> None:
         self.model = model
         self.llm_client = llm_client
+        self.seed = seed
 
     def solve(self, task: DataAnalysisTask) -> AgentOutput:
-        prompt = self._build_prompt(task)
-        raw_response = self.llm_client.generate_text(prompt, model=self.model, temperature=0.2)
+        profile = inspect_csv(task.dataset_path)
+        prompt = self._build_prompt(task, profile)
+        raw_response = self.llm_client.generate_text(prompt, model=self.model, temperature=0.0, seed=self.seed)
         code = extract_python_code(raw_response)
         return AgentOutput(
             code=code,
             raw_response=raw_response,
             llm_calls=1,
-            metadata={"agent": "openai", "model": self.model},
+            metadata={
+                "agent": "openai_generic",
+                "answer_contract": "ANSWER",
+                "model": self.model,
+                "prompt": prompt,
+                "csv_shape": profile["shape"],
+                "csv_columns": profile["columns"],
+                "seed": self.seed,
+                "llm_api_path": getattr(self.llm_client, "last_api_path", None),
+                "llm_seed_ignored": getattr(self.llm_client, "last_seed_ignored", False),
+            },
         )
 
-    def _build_prompt(self, task: DataAnalysisTask) -> str:
-        csv_name = Path(task.dataset_path).name
-        return f"""You are solving a data-analysis task with Python and pandas.
+    def _build_prompt(self, task: DataAnalysisTask, profile: dict[str, object]) -> str:
+        return f"""You are a careful data analyst writing Python pandas code.
 
-CSV file available in the current working directory: {csv_name}
+The dataset is available at the variable CSV_PATH.
 Question: {task.question}
+Expected answer type: {task.answer_type}
 
-Write only executable Python code.
+Dataset shape: {profile["shape"]}
+Columns:
+{profile["columns_text"]}
+
+Sample rows as CSV:
+{profile["sample_csv"]}
+
 Requirements:
-- read the CSV file named above
-- compute the answer directly from the data
-- print the final answer on the last line prefixed exactly with FINAL_ANSWER:
-- do not include explanations or markdown
+- write Python code only
+- use pandas
+- read the dataset with pd.read_csv(CSV_PATH)
+- assign the final answer to a variable named ANSWER
+- do not print prose
+- do not make plots
+- do not read external files
+- do not use network
+- keep code simple
+- if the answer is numeric, assign an int or float
+- if the answer is categorical or string, assign a string
 """
+
+
+class OpenAIBaselineAgent(OpenAIGenericAnalysisAgent):
+    """Backward-compatible name for the generic OpenAI baseline."""
+
+
+class SkillAugmentedAnalysisAgent(OpenAIGenericAnalysisAgent):
+    def __init__(
+        self,
+        model: str,
+        llm_client: BaseLLMClient,
+        skill_library: SkillLibrary,
+        k: int = 5,
+        seed: int | None = 42,
+    ) -> None:
+        super().__init__(model=model, llm_client=llm_client, seed=seed)
+        self.skill_library = skill_library
+        self.k = k
+
+    def solve(self, task: DataAnalysisTask) -> AgentOutput:
+        profile = inspect_csv(task.dataset_path)
+        selected_skills = self.skill_library.retrieve(task.tags, k=self.k)
+        prompt = self._build_skill_prompt(task, profile, selected_skills)
+        raw_response = self.llm_client.generate_text(prompt, model=self.model, temperature=0.0, seed=self.seed)
+        code = extract_python_code(raw_response)
+        return AgentOutput(
+            code=code,
+            raw_response=raw_response,
+            llm_calls=1,
+            metadata={
+                "agent": "skill_openai",
+                "answer_contract": "ANSWER",
+                "model": self.model,
+                "prompt": prompt,
+                "csv_shape": profile["shape"],
+                "csv_columns": profile["columns"],
+                "selected_skill_ids": [skill.skill_id for skill in selected_skills],
+                "seed": self.seed,
+                "llm_api_path": getattr(self.llm_client, "last_api_path", None),
+                "llm_seed_ignored": getattr(self.llm_client, "last_seed_ignored", False),
+            },
+        )
+
+    def _build_skill_prompt(
+        self,
+        task: DataAnalysisTask,
+        profile: dict[str, object],
+        selected_skills: list[PromptSkill],
+    ) -> str:
+        base_prompt = self._build_prompt(task, profile)
+        skills_text = "\n".join(
+            f"- {skill.skill_id}: {skill.prompt_instructions}" for skill in selected_skills
+        )
+        if not skills_text:
+            skills_text = "- No retrieved skills. Solve directly and carefully."
+        return base_prompt.replace(
+            "\nRequirements:",
+            f"\nRelevant analysis skills to apply:\n{skills_text}\n\nRequirements:",
+        )
+
+
+def inspect_csv(dataset_path: str | Path, sample_rows: int = 5) -> dict[str, object]:
+    df = pd.read_csv(dataset_path)
+    dtypes = {column: str(dtype) for column, dtype in df.dtypes.items()}
+    columns_text = "\n".join(f"- {column}: {dtype}" for column, dtype in dtypes.items())
+    sample_csv = df.head(sample_rows).to_csv(index=False).strip()
+    return {
+        "shape": [int(df.shape[0]), int(df.shape[1])],
+        "columns": list(df.columns),
+        "dtypes": dtypes,
+        "columns_text": columns_text,
+        "sample_csv": sample_csv,
+    }
 
 
 def extract_python_code(text: str) -> str:
@@ -201,4 +303,3 @@ def extract_python_code(text: str) -> str:
     if generic_match:
         return generic_match.group(1).strip() + "\n"
     return text.strip() + "\n"
-

@@ -1,0 +1,12 @@
+{
+  "applies_to_failure_categories": [],
+  "applies_to_tags": [
+    "outlier_detection"
+  ],
+  "description": "Apply the rule in the question before counting or filtering outliers.",
+  "metadata": {},
+  "name": "Outlier Detection",
+  "priority": 50,
+  "prompt_instructions": "For outlier tasks, identify the stated rule, compute thresholds explicitly, then filter or count according to that rule.",
+  "skill_id": "outlier_detection_skill"
+}

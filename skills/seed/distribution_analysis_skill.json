@@ -1,0 +1,12 @@
+{
+  "applies_to_failure_categories": [],
+  "applies_to_tags": [
+    "distribution_analysis"
+  ],
+  "description": "Be careful with bins, frequencies, proportions, and sorting.",
+  "metadata": {},
+  "name": "Distribution Analysis",
+  "priority": 50,
+  "prompt_instructions": "For distribution tasks, identify bins or categories exactly, compute frequencies/proportions carefully, and sort only when requested.",
+  "skill_id": "distribution_analysis_skill"
+}

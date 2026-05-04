@@ -1,0 +1,12 @@
+{
+  "applies_to_failure_categories": [],
+  "applies_to_tags": [
+    "feature_engineering"
+  ],
+  "description": "Create derived columns explicitly and verify intermediate values.",
+  "metadata": {},
+  "name": "Feature Engineering",
+  "priority": 50,
+  "prompt_instructions": "For feature engineering tasks, create derived columns explicitly, use clear column names, and check intermediate values before computing ANSWER.",
+  "skill_id": "feature_engineering_skill"
+}

@@ -1,0 +1,12 @@
+{
+  "applies_to_failure_categories": [],
+  "applies_to_tags": [
+    "correlation_analysis"
+  ],
+  "description": "Use pandas or numpy correlation methods on numeric columns.",
+  "metadata": {},
+  "name": "Correlation Analysis",
+  "priority": 50,
+  "prompt_instructions": "For correlation tasks, ensure columns are numeric, drop only required missing values, and return the requested coefficient or label.",
+  "skill_id": "correlation_analysis_skill"
+}

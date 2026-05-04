@@ -1,0 +1,13 @@
+{
+  "applies_to_failure_categories": [
+    "execution_error",
+    "missing_answer_variable"
+  ],
+  "applies_to_tags": [],
+  "description": "Always assign the final result to ANSWER instead of only printing.",
+  "metadata": {},
+  "name": "Ensure ANSWER Variable",
+  "priority": 95,
+  "prompt_instructions": "Always assign the final result to ANSWER. Never only print the answer.",
+  "skill_id": "ensure_answer_variable"
+}

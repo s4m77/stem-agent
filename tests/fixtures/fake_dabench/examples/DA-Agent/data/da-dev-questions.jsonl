@@ -1,0 +1,3 @@
+{"id": 1, "question": "Which region has the highest total revenue?", "concepts": ["Summary Statistics"], "constraints": "Group rows by region and sum revenue.", "format": "@top_region[region] where region is the region name.", "file_name": "sales.csv", "level": "easy"}
+{"id": 2, "question": "What is the total revenue for the West region?", "concepts": ["Summary Statistics"], "constraints": "Filter for West and sum revenue. Round to two decimal places.", "format": "@west_revenue[value] where value is a number rounded to two decimals.", "file_name": "sales.csv", "level": "medium"}
+

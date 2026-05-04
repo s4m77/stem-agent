@@ -1,0 +1,12 @@
+{
+  "applies_to_failure_categories": [],
+  "applies_to_tags": [
+    "summary_statistics"
+  ],
+  "description": "Compute requested summary statistics explicitly and handle missing values.",
+  "metadata": {},
+  "name": "Summary Statistics",
+  "priority": 50,
+  "prompt_instructions": "Compute requested statistics explicitly. Check whether relevant columns have missing values and handle them deliberately.",
+  "skill_id": "summary_statistics_skill"
+}
