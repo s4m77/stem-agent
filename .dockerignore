@@ -1,0 +1,12 @@
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.git
+external
+runs
+reports
+.env
+*.pyc
+.DS_Store

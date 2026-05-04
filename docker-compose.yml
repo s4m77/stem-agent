@@ -1,0 +1,14 @@
+services:
+  stemds:
+    build: .
+    working_dir: /app
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+      - ./external:/app/external
+      - ./runs:/app/runs
+      - ./reports:/app/reports
+      - ./skills:/app/skills
+    command: uv run pytest

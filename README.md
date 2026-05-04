@@ -12,6 +12,68 @@ uv sync --python 3.12 --extra dev
 
 For OpenAI-backed commands, put `OPENAI_API_KEY=...` in the repo-root `.env` file or export it in your shell. `.env` is ignored by git. Tests and the dummy baseline do not require a key.
 
+## Docker Setup
+
+The local uv workflow remains the primary development path. Docker is available for reviewers who want an isolated environment for tests, data validation, report generation, and optional OpenAI-backed smoke runs.
+
+Create a local `.env` file if you plan to run OpenAI-backed commands:
+
+```bash
+echo "OPENAI_API_KEY=..." > .env
+```
+
+Build the image:
+
+```bash
+docker compose build
+```
+
+Run tests:
+
+```bash
+docker compose run --rm stemds uv run pytest
+```
+
+Validate the converted DABench test split:
+
+```bash
+docker compose run --rm stemds uv run python -m stemds.cli validate-data --data data/dabench/dabench_test.jsonl
+```
+
+Generate the experiment report from existing artifacts:
+
+```bash
+docker compose run --rm stemds uv run python -m stemds.cli make-report \
+  --generic runs/stem/dev_004/test_generic_rerun.json \
+  --seed-skills runs/dabench_skill_seed_10.json \
+  --seed-comparison runs/dabench_openai_vs_skill_seed_10.json \
+  --stem-trace runs/stem/dev_003/development_trace.json \
+  --workflow-search runs/stem/dev_004/workflow_search_results.json \
+  --workflow-test runs/stem/dev_004/test_frozen_workflow.json \
+  --workflow-comparison runs/stem/dev_004/generic_rerun_vs_frozen_workflow.json \
+  --out reports/stemds_experiment_summary.md
+```
+
+Run a small optional OpenAI baseline smoke test:
+
+```bash
+docker compose run --rm stemds uv run python -m stemds.cli run-baseline \
+  --data data/dabench/dabench_test.jsonl \
+  --agent openai \
+  --model gpt-4.1-mini \
+  --limit 5 \
+  --seed 42 \
+  --out runs/docker_openai_smoke.json
+```
+
+The compose service mounts `./data`, `./external`, `./runs`, `./reports`, and `./skills` into `/app` so benchmark data and outputs persist on the host. Docker does not download or clone InfiAgent automatically. To convert raw DABench inside Docker, clone `external/InfiAgent` on the host first so it is mounted into `/app/external`. Converted JSONL files under `data/dabench` can be used directly as long as their referenced CSV paths are available; if tasks reference `external/InfiAgent` CSV files, mount `external/`.
+
+Run arbitrary StemDS CLI commands with this pattern:
+
+```bash
+docker compose run --rm stemds uv run python -m stemds.cli <command>
+```
+
 ## Run Tests
 
 ```bash
