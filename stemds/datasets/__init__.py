@@ -2,7 +2,7 @@
 
 from stemds.datasets.base import DatasetAdapter
 from stemds.datasets.dabench import DABenchAdapter
+from stemds.datasets.dsbench import DSBenchAdapter
 from stemds.datasets.toy import ToyJSONLAdapter
 
-__all__ = ["DatasetAdapter", "DABenchAdapter", "ToyJSONLAdapter"]
-
+__all__ = ["DatasetAdapter", "DABenchAdapter", "DSBenchAdapter", "ToyJSONLAdapter"]

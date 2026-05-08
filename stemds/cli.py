@@ -21,8 +21,19 @@ from stemds.analysis.failures import (
 )
 from stemds.config import DEFAULT_MODEL, DEFAULT_SANDBOX_TIMEOUT_SEC
 from stemds.datasets.dabench import DABenchAdapter
+from stemds.datasets.dsbench import DSBenchAdapter, inspect_dsbench
 from stemds.llm import LLMClientError, OpenAIClient
 from stemds.metrics import TaskEvalResult, aggregate_metrics, compare_answers, dabench_pair_counts
+from stemds.ml.datasets import create_builtin_ml_tasks
+from stemds.ml.metrics import aggregate_ml_metrics, ensure_baseline_score
+from stemds.ml.search import (
+    MLWorkflowSearcher,
+    evaluate_dummy_ml_tasks,
+    evaluate_ml_workflow_tasks,
+    select_ml_tasks,
+)
+from stemds.ml.tasks import load_ml_tasks_jsonl, save_ml_tasks_jsonl
+from stemds.ml.workflows import MLWorkflowSpec, direct_ml_workflow
 from stemds.reporting.report import write_experiment_report
 from stemds.sandbox import PythonSandbox
 from stemds.skills.library import SkillLibrary
@@ -31,6 +42,9 @@ from stemds.stem.developer import StemDeveloper
 from stemds.tasks import DataAnalysisTask, load_tasks_jsonl, save_tasks_jsonl
 from stemds.workflows.base import WorkflowSpec
 from stemds.workflows.executor import WorkflowAnalysisAgent
+from stemds.workflows.generated import GeneratedWorkflowSearcher
+from stemds.workflows.graph import GeneratedWorkflowSpec
+from stemds.workflows.graph_executor import GeneratedWorkflowExecutor
 from stemds.workflows.search import WorkflowSearcher
 
 
@@ -63,6 +77,20 @@ def build_parser() -> argparse.ArgumentParser:
     convert_parser.add_argument("--root", required=True, help="External dataset root directory.")
     convert_parser.add_argument("--out", required=True, help="Output StemDS JSONL path.")
     convert_parser.set_defaults(func=_cmd_convert_dataset)
+
+    inspect_dsbench_parser = subparsers.add_parser("inspect-dsbench", help="Inspect an external DSBench checkout.")
+    inspect_dsbench_parser.add_argument("--root", required=True, help="External DSBench root directory.")
+    inspect_dsbench_parser.add_argument("--out", required=True, help="Output Markdown inspection report.")
+    inspect_dsbench_parser.set_defaults(func=_cmd_inspect_dsbench)
+
+    convert_dsbench_parser = subparsers.add_parser(
+        "convert-dsbench-subset",
+        help="Convert an unambiguous simple tabular DSBench subset if available.",
+    )
+    convert_dsbench_parser.add_argument("--root", required=True, help="External DSBench root directory.")
+    convert_dsbench_parser.add_argument("--out", required=True, help="Output StemDS JSONL path.")
+    convert_dsbench_parser.add_argument("--limit", type=int, default=10)
+    convert_dsbench_parser.set_defaults(func=_cmd_convert_dsbench_subset)
 
     split_parser = subparsers.add_parser("split-data", help="Split a StemDS JSONL dataset.")
     split_parser.add_argument("--data", required=True)
@@ -132,6 +160,32 @@ def build_parser() -> argparse.ArgumentParser:
     eval_workflow_parser.add_argument("--out", required=True)
     eval_workflow_parser.set_defaults(func=_cmd_evaluate_workflow)
 
+    generate_workflows_parser = subparsers.add_parser(
+        "generate-workflows",
+        help="Generate and validate safe workflow-DSL candidates.",
+    )
+    generate_workflows_parser.add_argument("--train", required=True)
+    generate_workflows_parser.add_argument("--val", required=True)
+    generate_workflows_parser.add_argument("--model", default=DEFAULT_MODEL)
+    generate_workflows_parser.add_argument("--out-dir", required=True)
+    generate_workflows_parser.add_argument("--max-candidates", type=int, default=3)
+    generate_workflows_parser.add_argument("--val-limit", type=int, default=38)
+    generate_workflows_parser.add_argument("--seed", type=int, default=42)
+    generate_workflows_parser.add_argument("--min-delta", type=float, default=0.03)
+    generate_workflows_parser.set_defaults(func=_cmd_generate_workflows)
+
+    eval_generated_workflow_parser = subparsers.add_parser(
+        "evaluate-generated-workflow",
+        help="Evaluate a frozen generated workflow DSL graph.",
+    )
+    eval_generated_workflow_parser.add_argument("--data", required=True)
+    eval_generated_workflow_parser.add_argument("--workflow", required=True)
+    eval_generated_workflow_parser.add_argument("--model", default=DEFAULT_MODEL)
+    eval_generated_workflow_parser.add_argument("--limit", type=int, default=None)
+    eval_generated_workflow_parser.add_argument("--seed", type=int, default=42)
+    eval_generated_workflow_parser.add_argument("--out", required=True)
+    eval_generated_workflow_parser.set_defaults(func=_cmd_evaluate_generated_workflow)
+
     report_parser = subparsers.add_parser("make-report", help="Generate a Markdown experiment report.")
     report_parser.add_argument("--generic", required=True)
     report_parser.add_argument("--workflow-search", required=True)
@@ -143,6 +197,44 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("--workflow-comparison", default=None)
     report_parser.add_argument("--title", default="StemDS Experiment Summary")
     report_parser.set_defaults(func=_cmd_make_report)
+
+    create_ml_parser = subparsers.add_parser("create-ml-tasks", help="Create built-in sklearn ML tasks.")
+    create_ml_parser.add_argument("--out", required=True)
+    create_ml_parser.add_argument("--seed", type=int, default=42)
+    create_ml_parser.set_defaults(func=_cmd_create_ml_tasks)
+
+    ml_baseline_parser = subparsers.add_parser("run-ml-baseline", help="Run a mini ML-engineering baseline.")
+    ml_baseline_parser.add_argument("--data", required=True)
+    ml_baseline_parser.add_argument("--agent", choices=["dummy", "openai"], default="dummy")
+    ml_baseline_parser.add_argument("--model", default=DEFAULT_MODEL)
+    ml_baseline_parser.add_argument("--limit", type=int, default=None)
+    ml_baseline_parser.add_argument("--seed", type=int, default=42)
+    ml_baseline_parser.add_argument("--out", required=True)
+    ml_baseline_parser.set_defaults(func=_cmd_run_ml_baseline)
+
+    search_ml_parser = subparsers.add_parser("search-ml-workflows", help="Search mini ML workflow candidates.")
+    search_ml_parser.add_argument("--data", required=True)
+    search_ml_parser.add_argument("--model", default=DEFAULT_MODEL)
+    search_ml_parser.add_argument("--limit", type=int, default=None)
+    search_ml_parser.add_argument("--seed", type=int, default=42)
+    search_ml_parser.add_argument("--min-delta", type=float, default=0.03)
+    search_ml_parser.add_argument("--out-dir", required=True)
+    search_ml_parser.set_defaults(func=_cmd_search_ml_workflows)
+
+    eval_ml_parser = subparsers.add_parser("evaluate-ml-workflow", help="Evaluate a frozen mini ML workflow.")
+    eval_ml_parser.add_argument("--data", required=True)
+    eval_ml_parser.add_argument("--workflow", required=True)
+    eval_ml_parser.add_argument("--model", default=DEFAULT_MODEL)
+    eval_ml_parser.add_argument("--limit", type=int, default=None)
+    eval_ml_parser.add_argument("--seed", type=int, default=42)
+    eval_ml_parser.add_argument("--out", required=True)
+    eval_ml_parser.set_defaults(func=_cmd_evaluate_ml_workflow)
+
+    compare_ml_parser = subparsers.add_parser("compare-ml-runs", help="Compare two mini ML run JSON files.")
+    compare_ml_parser.add_argument("--a", required=True)
+    compare_ml_parser.add_argument("--b", required=True)
+    compare_ml_parser.add_argument("--out", required=True)
+    compare_ml_parser.set_defaults(func=_cmd_compare_ml_runs)
 
     return parser
 
@@ -213,6 +305,56 @@ def _cmd_convert_dataset(args: argparse.Namespace) -> int:
     output_path = Path(args.out)
     adapter.write_jsonl(tasks, output_path)
     print(f"Converted {len(tasks)} tasks to {output_path}")
+    return 0
+
+
+def _cmd_inspect_dsbench(args: argparse.Namespace) -> int:
+    inspection = inspect_dsbench(Path(args.root))
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(inspection.to_markdown(), encoding="utf-8")
+    summary = {
+        "root": inspection.root,
+        "exists": inspection.exists,
+        "data_analysis_records": inspection.data_analysis_records,
+        "data_modeling_records": inspection.data_modeling_records,
+        "simple_subset_records": inspection.simple_subset_records,
+        "conversion_supported": inspection.conversion_supported,
+        "report": str(output_path),
+    }
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_convert_dsbench_subset(args: argparse.Namespace) -> int:
+    adapter = DSBenchAdapter(Path(args.root))
+    tasks, skipped = adapter.convert_simple_tabular_subset(limit=args.limit)
+    summary_path = Path("reports/dsbench_conversion_summary.md")
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(_render_dsbench_conversion_summary(args.root, args.out, tasks, skipped), encoding="utf-8")
+
+    if not tasks:
+        print(
+            "No unambiguous simple DSBench subset found; "
+            f"conversion summary written to {summary_path}",
+            file=sys.stderr,
+        )
+        return 0
+
+    output_path = Path(args.out)
+    adapter.write_jsonl(tasks, output_path)
+    print(
+        json.dumps(
+            {
+                "converted": len(tasks),
+                "skipped": len(skipped),
+                "out": str(output_path),
+                "summary": str(summary_path),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 
@@ -379,6 +521,51 @@ def _cmd_evaluate_workflow(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_generate_workflows(args: argparse.Namespace) -> int:
+    searcher = GeneratedWorkflowSearcher(
+        llm_client=OpenAIClient(),
+        model=args.model,
+        train_data=Path(args.train),
+        val_data=Path(args.val),
+        out_dir=Path(args.out_dir),
+        max_candidates=args.max_candidates,
+        val_limit=args.val_limit,
+        seed=args.seed,
+        min_delta=args.min_delta,
+    )
+    outcome = searcher.search()
+    print(json.dumps(outcome.summary_dict(), indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_evaluate_generated_workflow(args: argparse.Namespace) -> int:
+    workflow = GeneratedWorkflowSpec.load_json(Path(args.workflow))
+    tasks = load_tasks_jsonl(args.data)
+    tasks = _select_tasks(tasks, limit=args.limit, seed=args.seed)
+    sandbox = PythonSandbox(timeout_sec=workflow.limits.timeout_sec)
+    agent = GeneratedWorkflowExecutor(
+        workflow=workflow,
+        model=args.model,
+        llm_client=OpenAIClient(),
+        seed=args.seed,
+        sandbox=sandbox,
+    )
+    results = [
+        _evaluate_task(task, agent, sandbox)
+        for task in _progress_tasks(tasks, desc=f"evaluate-generated-workflow:{workflow.workflow_id}")
+    ]
+    payload = {
+        "workflow": workflow.to_dict(),
+        "results": [result.to_dict() for result in results],
+        "metrics": aggregate_metrics(results),
+    }
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(json.dumps(payload["metrics"], indent=2, sort_keys=True))
+    return 0
+
+
 def _cmd_make_report(args: argparse.Namespace) -> int:
     warnings = write_experiment_report(
         generic_path=args.generic,
@@ -394,6 +581,97 @@ def _cmd_make_report(args: argparse.Namespace) -> int:
     for warning in warnings:
         print(f"warning: {warning}", file=sys.stderr)
     print(f"Wrote report to {args.out}")
+    return 0
+
+
+def _cmd_create_ml_tasks(args: argparse.Namespace) -> int:
+    tasks = [ensure_baseline_score(task, seed=args.seed) for task in create_builtin_ml_tasks()]
+    save_ml_tasks_jsonl(tasks, args.out)
+    print(f"Wrote {len(tasks)} ML tasks to {args.out}")
+    return 0
+
+
+def _cmd_run_ml_baseline(args: argparse.Namespace) -> int:
+    tasks = [ensure_baseline_score(task, seed=args.seed) for task in load_ml_tasks_jsonl(args.data)]
+    tasks = select_ml_tasks(tasks, limit=args.limit, seed=args.seed)
+    if args.agent == "dummy":
+        results = evaluate_dummy_ml_tasks(tasks, seed=args.seed)
+        mode = "dummy"
+    else:
+        results = evaluate_ml_workflow_tasks(
+            tasks=tasks,
+            workflow=direct_ml_workflow(),
+            model=args.model,
+            llm_client=OpenAIClient(),
+            seed=args.seed,
+        )
+        mode = "openai_ml_direct"
+    payload = {
+        "mode": mode,
+        "results": [result.to_dict() for result in results],
+        "metrics": aggregate_ml_metrics(results),
+    }
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(json.dumps(payload["metrics"], indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_search_ml_workflows(args: argparse.Namespace) -> int:
+    tasks = [ensure_baseline_score(task, seed=args.seed) for task in load_ml_tasks_jsonl(args.data)]
+    searcher = MLWorkflowSearcher(
+        tasks=tasks,
+        llm_client=OpenAIClient(),
+        model=args.model,
+        out_dir=Path(args.out_dir),
+        limit=args.limit,
+        seed=args.seed,
+        min_delta=args.min_delta,
+    )
+    outcome = searcher.search()
+    print(json.dumps(outcome.to_dict(), indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_evaluate_ml_workflow(args: argparse.Namespace) -> int:
+    tasks = [ensure_baseline_score(task, seed=args.seed) for task in load_ml_tasks_jsonl(args.data)]
+    tasks = select_ml_tasks(tasks, limit=args.limit, seed=args.seed)
+    workflow = MLWorkflowSpec.load_json(args.workflow)
+    results = evaluate_ml_workflow_tasks(
+        tasks=tasks,
+        workflow=workflow,
+        model=args.model,
+        llm_client=OpenAIClient(),
+        seed=args.seed,
+    )
+    payload = {
+        "workflow": workflow.to_dict(),
+        "results": [result.to_dict() for result in results],
+        "metrics": aggregate_ml_metrics(results),
+    }
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(json.dumps(payload["metrics"], indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_compare_ml_runs(args: argparse.Namespace) -> int:
+    a_payload = json.loads(Path(args.a).read_text(encoding="utf-8"))
+    b_payload = json.loads(Path(args.b).read_text(encoding="utf-8"))
+    a_metrics = dict(a_payload.get("metrics", {}))
+    b_metrics = dict(b_payload.get("metrics", {}))
+    deltas = {
+        key: b_metrics[key] - a_metrics[key]
+        for key in sorted(set(a_metrics) & set(b_metrics))
+        if isinstance(a_metrics.get(key), int | float) and isinstance(b_metrics.get(key), int | float)
+    }
+    payload = {"a": args.a, "b": args.b, "a_metrics": a_metrics, "b_metrics": b_metrics, "deltas": deltas}
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(json.dumps(deltas, indent=2, sort_keys=True))
     return 0
 
 
@@ -475,6 +753,44 @@ def _select_tasks(tasks: list[DataAnalysisTask], limit: int | None, seed: int | 
     random.Random(seed).shuffle(indexed_tasks)
     selected = sorted(indexed_tasks[:limit], key=lambda item: item[0])
     return [task for _index, task in selected]
+
+
+def _render_dsbench_conversion_summary(
+    root: str,
+    output_path: str,
+    tasks: list[DataAnalysisTask],
+    skipped: list[str],
+) -> str:
+    lines = [
+        "# DSBench Subset Conversion Summary",
+        "",
+        "This conversion is exploratory. DABench remains the validated StemDS benchmark result.",
+        "",
+        f"- Root: `{root}`",
+        f"- Output: `{output_path}`",
+        f"- Converted tasks: `{len(tasks)}`",
+        f"- Skipped records: `{len(skipped)}`",
+        "",
+        "## Converted Tasks",
+    ]
+    if tasks:
+        lines.extend(f"- `{task.task_id}` -> `{task.dataset_path}`" for task in tasks)
+    else:
+        lines.append(
+            "- None. No explicit simple CSV/question/answer metadata was found, or all records were unsupported."
+        )
+    lines.extend(["", "## Skipped Records"])
+    lines.extend([f"- {reason}" for reason in skipped] or ["- None."])
+    lines.extend(
+        [
+            "",
+            "## Next Steps",
+            "- Add explicit DSBench subset metadata for CSV/table tasks if a conservative analysis subset is desired.",
+            "- Add separate extractors before supporting Excel, image, notebook, or Kaggle-style modeling tasks.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

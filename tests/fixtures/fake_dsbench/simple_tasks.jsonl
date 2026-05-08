@@ -1,0 +1,1 @@
+{"answer": 30, "answer_type": "number", "dataset_path": "tables/sales.csv", "question": "What is the total revenue?", "tags": ["simple_tabular", "aggregation"], "task_id": "sales_total"}
