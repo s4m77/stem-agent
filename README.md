@@ -1,8 +1,19 @@
 # StemDS
 
+![Python](https://img.shields.io/badge/python-3.12-blue)
+![uv](https://img.shields.io/badge/package%20manager-uv-purple)
+![pytest](https://img.shields.io/badge/tests-pytest-green)
+![pandas](https://img.shields.io/badge/pandas-data%20analysis-blue)
+![scikit--learn](https://img.shields.io/badge/scikit--learn-ML%20extension-orange)
+![OpenAI](https://img.shields.io/badge/OpenAI-gpt--4.1--mini-black)
+
+[Read the full challenge report](report.md): methodology, experiments, negative results, and limitations.
+
 StemDS is a small command-line proof of concept for a constrained stem agent. The first target domain is data analysis: given a CSV and a natural-language question, an agent writes Python/pandas code, executes it in a subprocess sandbox, and returns a measured answer.
 
-The current skeleton provides the runnable foundation for constrained stem differentiation: task schemas, toy data, DABench/DAEval adapter infrastructure, sandbox execution, answer metrics, baseline agents, CLI commands, seed skill metadata, PromptSkill validation, workflow search, and tests.
+The current skeleton provides the runnable foundation for constrained stem differentiation: task schemas, toy data, DABench/DAEval adapter infrastructure, sandbox execution, answer metrics, baseline agents, CLI commands, seed skill metadata, PromptSkill validation, AI-assisted developer-curated workflow search, generated workflow-graph search, and tests.
+
+The strongest held-out DABench result comes from selecting the human-authored `code_then_repair` workflow. Generated workflow-graph search is included as a useful negative result: generated candidates were validated and rejected when they underperformed.
 
 ## Setup
 
@@ -10,7 +21,7 @@ The current skeleton provides the runnable foundation for constrained stem diffe
 uv sync --python 3.12 --extra dev
 ```
 
-For OpenAI-backed commands, put `OPENAI_API_KEY=...` in the repo-root `.env` file or export it in your shell. `.env` is ignored by git. Tests and the dummy baseline do not require a key.
+For OpenAI-backed commands, put `OPENAI_API_KEY=...` in the repo-root `.env` file or export it in your shell. Tests and the dummy baseline do not require a key.
 
 ## Docker Setup
 
@@ -234,9 +245,9 @@ uv run python -m stemds.cli compare-runs \
   --markdown-out runs/stem/dev_002/generic_vs_developed.md
 ```
 
-## Workflow Search v0
+## AI-Assisted Developer-Curated Workflow Search v0
 
-PromptSkill-only differentiation rejected all candidates in `dev_003`, which is the intended safeguard when proposed skills regress validation performance. Workflow search is the next differentiation axis: StemDS searches over small prompt/control-flow architectures, validates them on DABench validation tasks, freezes the best workflow only if it beats `direct_code`, and evaluates that frozen architecture on held-out test tasks.
+PromptSkill-only differentiation rejected all candidates in `dev_003`, which is the intended safeguard when proposed skills regress validation performance. AI-assisted developer-curated workflow search is the next differentiation axis: StemDS searches over a small menu of prompt/control-flow architectures that I designed with AI coding assistance and then reviewed/implemented as externally supplied candidates. StemDS validates them on DABench validation tasks, freezes the best workflow only if it beats `direct_code`, and evaluates that frozen architecture on held-out test tasks. This is useful, but it is not autonomous architecture invention.
 
 Search workflow candidates on validation:
 
@@ -266,13 +277,57 @@ Compare generic baseline to the frozen workflow:
 
 ```bash
 uv run python -m stemds.cli compare-runs \
-  --a runs/stem/dev_003/test_generic.json \
+  --a runs/stem/dev_004/test_generic_rerun.json \
   --b runs/stem/dev_004/test_frozen_workflow.json \
-  --out runs/stem/dev_004/generic_vs_frozen_workflow.json \
-  --markdown-out runs/stem/dev_004/generic_vs_frozen_workflow.md
+  --out runs/stem/dev_004/generic_rerun_vs_frozen_workflow.json \
+  --markdown-out runs/stem/dev_004/generic_rerun_vs_frozen_workflow.md
 ```
 
-Workflow search v0 still does not generate Python skills or modify repository code. The frozen workflow is the current specialized architecture for this benchmark slice.
+Workflow search v0 still does not generate Python skills, generate arbitrary tools, or modify repository code. The frozen `code_then_repair` workflow is the strongest DABench result in this repository, but it is selection from an AI-assisted developer-curated menu rather than fully generative self-assembly. I used AI assistance while designing/implementing the menu, so this result should be read as validated selection over externally supplied workflows, not autonomous workflow invention.
+
+## Generative Workflow Search
+
+The predefined workflow search above is useful, but it is still selection-heavy: the workflow menu was externally supplied, with AI assistance used during development and human review/implementation deciding what entered the menu. Generative workflow search lets the stem loop propose workflow graphs from training failures while staying inside a safe DSL. The human defines primitives such as `schema_summary`, `llm_plan`, `llm_code`, `python_execute`, bounded `llm_repair`, and `stop`; the LLM proposes JSON graphs; StemDS validates graph structure and budget before any evaluation.
+
+This tests a more generative path because the system can propose a candidate control-flow graph, not only select a prompt template. The contrast is deliberate: the successful `code_then_repair` result came from the externally supplied workflow menu, while this section tests whether the system can generate workflow graphs itself. Validation still acts as the immune system: malformed graphs, unknown nodes, unbounded cycles, and non-improving workflows are rejected. Existing human-authored workflow search remains available and is not replaced.
+
+Generate candidate workflows, validate them, and freeze the best one only if it beats `direct_code` on validation:
+
+```bash
+uv run python -m stemds.cli generate-workflows \
+  --train data/dabench/dabench_train.jsonl \
+  --val data/dabench/dabench_val.jsonl \
+  --model gpt-4.1-mini \
+  --out-dir runs/stem/gen_001 \
+  --max-candidates 3 \
+  --val-limit 38 \
+  --seed 42 \
+  --min-delta 0.03
+```
+
+Evaluate the frozen generated workflow on the fixed 40-task DABench test slice:
+
+```bash
+uv run python -m stemds.cli evaluate-generated-workflow \
+  --data data/dabench/dabench_test.jsonl \
+  --workflow runs/stem/gen_001/frozen_generated_workflow.json \
+  --model gpt-4.1-mini \
+  --limit 40 \
+  --seed 42 \
+  --out runs/stem/gen_001/test_generated_workflow.json
+```
+
+Compare generated workflow performance to the generic baseline:
+
+```bash
+uv run python -m stemds.cli compare-runs \
+  --a runs/stem/dev_004/test_generic_rerun.json \
+  --b runs/stem/gen_001/test_generated_workflow.json \
+  --out runs/stem/gen_001/generic_vs_generated_workflow.json \
+  --markdown-out runs/stem/gen_001/generic_vs_generated_workflow.md
+```
+
+The current `gen_001` result is negative: 3 workflow graphs were proposed, 2 were structurally valid, neither beat `direct_code` on validation, and the generated-workflow path froze `direct_code`. Its held-out result was accuracy `0.300` and composite `0.261`, below both the generic rerun and the human-authored `code_then_repair` workflow. See `reports/generative_workflow_search_summary.md`.
 
 ## Generate Experiment Report
 
@@ -290,4 +345,82 @@ uv run python -m stemds.cli make-report \
   --out reports/stemds_experiment_summary.md
 ```
 
-The report is intended for write-up drafting. It summarizes setup, generic baseline behavior, seed-skill regression, PromptSkill validation, workflow-search validation, frozen-workflow test performance, limitations, and suggested write-up bullets.
+The report is intended for write-up drafting. It summarizes setup, generic baseline behavior, seed-skill regression, PromptSkill validation, human-authored workflow-search validation, frozen-workflow test performance, limitations, and suggested write-up bullets. The generated workflow negative result is summarized separately in `reports/generative_workflow_search_summary.md`.
+
+## Mini ML-Engineering Extension
+
+This is a stretch demo, not the main DABench result. It uses only built-in `sklearn.datasets` data and tests whether StemDS can support a second data-science specialization with a different task schema, output contract, sandbox, and metric. It does not integrate MLAgentBench, MLE-bench, DSBench, or PythonSkill generation.
+
+Create the built-in ML task file:
+
+```bash
+uv run python -m stemds.cli create-ml-tasks --out data/ml/sklearn_tasks.jsonl
+```
+
+Run the offline dummy baseline:
+
+```bash
+uv run python -m stemds.cli run-ml-baseline --data data/ml/sklearn_tasks.jsonl --agent dummy --out runs/ml/ml_dummy.json
+```
+
+Run an optional OpenAI ML baseline:
+
+```bash
+uv run python -m stemds.cli run-ml-baseline \
+  --data data/ml/sklearn_tasks.jsonl \
+  --agent openai \
+  --model gpt-4.1-mini \
+  --limit 5 \
+  --seed 42 \
+  --out runs/ml/ml_generic.json
+```
+
+Search ML workflows:
+
+```bash
+uv run python -m stemds.cli search-ml-workflows \
+  --data data/ml/sklearn_tasks.jsonl \
+  --model gpt-4.1-mini \
+  --limit 5 \
+  --seed 42 \
+  --min-delta 0.03 \
+  --out-dir runs/ml/dev_001
+```
+
+Evaluate the frozen ML workflow:
+
+```bash
+uv run python -m stemds.cli evaluate-ml-workflow \
+  --data data/ml/sklearn_tasks.jsonl \
+  --workflow runs/ml/dev_001/frozen_ml_workflow.json \
+  --model gpt-4.1-mini \
+  --limit 5 \
+  --seed 42 \
+  --out runs/ml/dev_001/ml_test_frozen_workflow.json
+```
+
+The ML extension does not replace the DABench headline result; it is a smoke demo that the same framework can host a scoped ML-engineering task family.
+
+## DSBench Exploratory Extension
+
+DABench remains the main validated result. DSBench is included only as an exploratory future-work path for broader data-science tasks with mixed analysis/modeling layouts. Raw DSBench data should live under `external/DSBench` and should not be committed.
+
+Clone DSBench externally if needed:
+
+```bash
+git clone https://github.com/liqiangjing/dsbench.git external/DSBench
+```
+
+Inspect the local DSBench structure:
+
+```bash
+uv run python -m stemds.cli inspect-dsbench --root external/DSBench --out reports/dsbench_inspection.md
+```
+
+Try converting only an unambiguous simple CSV/question/answer subset if such metadata exists:
+
+```bash
+uv run python -m stemds.cli convert-dsbench-subset --root external/DSBench --out data/dsbench/dsbench_subset.jsonl --limit 10
+```
+
+The current DSBench adapter is deliberately conservative. It converts only explicit simple tabular records with `dataset_path`, `question`, `answer`, and `answer_type` fields. Native DSBench analysis assets may include Excel workbooks, images, notebooks, archived question files, and data-modeling competition metadata, so full integration requires dedicated extraction and scoring rules.
