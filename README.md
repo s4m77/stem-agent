@@ -7,13 +7,18 @@
 ![scikit--learn](https://img.shields.io/badge/scikit--learn-ML%20extension-orange)
 ![OpenAI](https://img.shields.io/badge/OpenAI-gpt--4.1--mini-black)
 
-[Read the full challenge report](report.md): methodology, experiments, negative results, and limitations.
-
 StemDS is a small command-line proof of concept for a constrained stem agent. The first target domain is data analysis: given a CSV and a natural-language question, an agent writes Python/pandas code, executes it in a subprocess sandbox, and returns a measured answer.
 
 The current skeleton provides the runnable foundation for constrained stem differentiation: task schemas, toy data, DABench/DAEval adapter infrastructure, sandbox execution, answer metrics, baseline agents, CLI commands, seed skill metadata, PromptSkill validation, AI-assisted developer-curated workflow search, generated workflow-graph search, and tests.
 
 The strongest held-out DABench result comes from selecting the human-authored `code_then_repair` workflow. Generated workflow-graph search is included as a useful negative result: generated candidates were validated and rejected when they underperformed.
+
+## Documents
+
+- [Full challenge report](./report.md)
+- [Task 2 response](./TASK%232.md)
+- [Experiment summary](./reports/stemds_experiment_summary.md)
+- [Generative workflow search summary](./reports/generative_workflow_search_summary.md)
 
 ## Setup
 
